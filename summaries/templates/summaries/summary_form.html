@@ -1,0 +1,26 @@
+{% extends "babybuddy/page.html" %}
+{% load breadcrumb i18n %}
+{% block title %}
+    {% trans "Generate visit summary" %} - {{ child }}
+{% endblock %}
+{% block breadcrumbs %}
+    {{ block.super }}
+    <li class="breadcrumb-item font-weight-bold">{% child_quick_switch child 'reports:report-list' %}</li>
+    <li class="breadcrumb-item">
+        <a href="{% url 'summaries:summary-list' child.slug %}">{% trans "Visit summaries" %}</a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">{% trans "Generate" %}</li>
+{% endblock %}
+{% block content %}
+    <div class="container-fluid" style="max-width: 640px;">
+        <h1>{% trans "Generate visit summary" %}</h1>
+        <p class="text-muted">
+            {% blocktrans trimmed %}
+                The statistics and every record in the date range are saved
+                immediately and never change afterwards, even if the records
+                are later edited.
+            {% endblocktrans %}
+        </p>
+        {% include "babybuddy/form.html" %}
+    </div>
+{% endblock %}

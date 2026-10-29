@@ -1,0 +1,161 @@
+{% extends "babybuddy/page.html" %}
+{% load i18n summary_extras tz %}
+{% block title %}
+    {% trans "Changes since the summary" %} - {{ summary.data.child.name }}
+{% endblock %}
+{% block breadcrumbs %}
+    {{ block.super }}
+    <li class="breadcrumb-item font-weight-bold">{{ summary.data.child.name }}</li>
+    <li class="breadcrumb-item">
+        <a href="{% url 'summaries:summary-detail' summary.id %}">{% trans "Visit summary" %}</a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">{% trans "Compare" %}</li>
+{% endblock %}
+{% block content %}
+    {% include "summaries/_print_styles.html" %}
+    {% timezone summary.data.timezone %}
+        <div class="container-fluid summary-compare summary-print-area">
+            <div class="mb-3">
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="{% url 'summaries:summary-detail' summary.id %}">
+                    <i class="icon-angle-circled-left" aria-hidden="true"></i>
+                    {% trans "Back to the summary" %}
+                </a>
+            </div>
+            <h1>{% trans "Changes since the summary" %}</h1>
+            <p class="text-muted">
+                {% blocktrans with generated=summary.data.generated_at|from_iso|date:"SHORT_DATETIME_FORMAT" checked=comparison.generated_at|from_iso|date:"SHORT_DATETIME_FORMAT" %}
+                Summary generated at {{ generated }}. Current data checked at {{ checked }}
+            {% endblocktrans %}
+            </p>
+            {% if comparison.has_changes %}
+                <div class="alert alert-warning">{% trans "Current data differs from this summary. Review the changes below." %}</div>
+            {% else %}
+                <div class="alert alert-success">{% trans "No changes: current data matches the summary for this date range." %}</div>
+            {% endif %}
+            {% for section in comparison.sections %}
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0">
+                            {{ section.key|section_label }}
+                            {% if section.added %}<span class="badge bg-success">{{ section.added|length }} {% trans "added" %}</span>{% endif %}
+                            {% if section.changed %}<span class="badge bg-warning text-dark">{{ section.changed|length }} {% trans "changed" %}</span>{% endif %}
+                            {% if section.deleted %}<span class="badge bg-danger">{{ section.deleted|length }} {% trans "deleted" %}</span>{% endif %}
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        {% if not section.has_changes %}
+                            <p class="text-muted mb-0">{% trans "No changes." %}</p>
+                        {% endif %}
+                        {% if section.added %}
+                            <h3 class="h6 text-success">{% trans "Added records" %}</h3>
+                            {% with entries=section.added key=section.key show_edit=True %}
+                                {% include "summaries/_entries_table.html" %}
+                            {% endwith %}
+                        {% endif %}
+                        {% if section.deleted %}
+                            <h3 class="h6 text-danger">{% trans "Deleted records" %}</h3>
+                            {% with entries=section.deleted key=section.key %}
+                                {% include "summaries/_entries_table.html" %}
+                            {% endwith %}
+                        {% endif %}
+                        {% if section.changed %}
+                            <h3 class="h6 text-warning">{% trans "Changed records" %}</h3>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-bordered align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>{% trans "ID" %}</th>
+                                            <th>{% trans "Field" %}</th>
+                                            <th>{% trans "In summary" %}</th>
+                                            <th>{% trans "Current" %}</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in section.changed %}
+                                            {% for change in item.changes %}
+                                                {% with kind=change.field|col_kind:section.key %}
+                                                    <tr>
+                                                        <td>{{ item.id }}</td>
+                                                        <td>{{ change.label }}</td>
+                                                        <td class="text-danger">
+                                                            {% if kind == "tags" %}
+                                                                {{ change.old|join:", "|default:"–" }}
+                                                            {% elif kind == "bool" %}
+                                                                {% if change.old %}✓{% else %}–{% endif %}
+                                                            {% elif kind == "duration" %}
+                                                                {% if change.old != None %}{{ change.old|seconds_duration }}{% else %}–{% endif %}
+                                                            {% elif kind == "datetime" %}
+                                                                {% if change.old %}{{ change.old|from_iso|date:"SHORT_DATETIME_FORMAT" }}{% else %}–{% endif %}
+                                                            {% elif kind == "date" %}
+                                                                {% if change.old %}{{ change.old|from_iso|date:"SHORT_DATE_FORMAT" }}{% else %}–{% endif %}
+                                                            {% else %}
+                                                                {% if change.old_display %}{{ change.old_display }}{% elif change.old != None and change.old != "" %}{{ change.old }}{% else %}–{% endif %}
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="text-success">
+                                                            {% if kind == "tags" %}
+                                                                {{ change.new|join:", "|default:"–" }}
+                                                            {% elif kind == "bool" %}
+                                                                {% if change.new %}✓{% else %}–{% endif %}
+                                                            {% elif kind == "duration" %}
+                                                                {% if change.new != None %}{{ change.new|seconds_duration }}{% else %}–{% endif %}
+                                                            {% elif kind == "datetime" %}
+                                                                {% if change.new %}{{ change.new|from_iso|date:"SHORT_DATETIME_FORMAT" }}{% else %}–{% endif %}
+                                                            {% elif kind == "date" %}
+                                                                {% if change.new %}{{ change.new|from_iso|date:"SHORT_DATE_FORMAT" }}{% else %}–{% endif %}
+                                                            {% else %}
+                                                                {% if change.new_display %}{{ change.new_display }}{% elif change.new != None and change.new != "" %}{{ change.new }}{% else %}–{% endif %}
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                {% endwith %}
+                                            {% endfor %}
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% endif %}
+                        <h3 class="h6">{% trans "Statistics" %}</h3>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-borderless mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>{% trans "Metric" %}</th>
+                                        <th class="text-end">{% trans "In summary" %}</th>
+                                        <th class="text-end">{% trans "Current" %}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for pair in section.stats %}
+                                        <tr {% if pair.changed %}class="table-warning"{% endif %}>
+                                            <td>{{ pair.label }}</td>
+                                            <td class="text-end">
+                                                {% if pair.is_duration %}
+                                                    {% if pair.old != None %}{{ pair.old|seconds_duration }}{% else %}–{% endif %}
+                                                {% elif pair.is_dict %}
+                                                    {% if pair.old %}{% include "summaries/_dict_items.html" with items=pair.old key=section.key metric=pair.metric %}{% else %}–{% endif %}
+                                                {% else %}
+                                                    {% if pair.old != None %}{{ pair.old }}{% else %}–{% endif %}
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-end fw-bold">
+                                                {% if pair.is_duration %}
+                                                    {% if pair.new != None %}{{ pair.new|seconds_duration }}{% else %}–{% endif %}
+                                                {% elif pair.is_dict %}
+                                                    {% if pair.new %}{% include "summaries/_dict_items.html" with items=pair.new key=section.key metric=pair.metric %}{% else %}–{% endif %}
+                                                {% else %}
+                                                    {% if pair.new != None %}{{ pair.new }}{% else %}–{% endif %}
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% endtimezone %}
+{% endblock %}

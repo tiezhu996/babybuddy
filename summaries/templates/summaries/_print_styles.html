@@ -1,0 +1,76 @@
+{% load i18n %}
+<style>
+    @media print {
+        /* The site uses a dark theme; browsers print without backgrounds by
+           default, which turns the light-on-dark text into grey on white.
+           Give frozen summaries their own high-contrast paper palette. */
+        :root {
+            color-scheme: light;
+        }
+        html,
+        body {
+            background: #ffffff !important;
+            color: #212529 !important;
+        }
+        nav.navbar,
+        nav.breadcrumb,
+        .no-print,
+        .breadcrumb {
+            display: none !important;
+        }
+        body {
+            padding-top: 0 !important;
+        }
+        .summary-print-area .card {
+            background: #ffffff !important;
+            color: #212529 !important;
+            border: 1px solid #adb5bd !important;
+        }
+        .summary-print-area .card-header {
+            background: #f1f3f5 !important;
+            color: #000000 !important;
+            break-after: avoid;
+            page-break-after: avoid;
+        }
+        .summary-print-area .table,
+        .summary-print-area .table th,
+        .summary-print-area .table td {
+            color: #212529 !important;
+            background: transparent !important;
+            border-color: #adb5bd !important;
+        }
+        .summary-print-area .text-muted {
+            color: #6c757d !important;
+        }
+        .summary-print-area a {
+            color: #000000 !important;
+            text-decoration: none;
+        }
+        .summary-print-area .badge {
+            color: #000000 !important;
+            background: #ffffff !important;
+            border: 1px solid #6c757d !important;
+        }
+        .summary-print-area .alert {
+            color: #212529 !important;
+            background: #ffffff !important;
+            border: 1px solid #adb5bd !important;
+        }
+        .summary-print-area .text-success,
+        .summary-print-area .text-danger,
+        .summary-print-area .text-warning {
+            color: #212529 !important;
+        }
+        .summary-header .card {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .summary-print-area tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+        .table {
+            font-size: 0.75rem;
+        }
+    }
+</style>

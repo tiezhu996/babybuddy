@@ -1,0 +1,23 @@
+{% load i18n summary_extras %}
+<table class="table table-sm table-borderless summary-stats mb-0">
+    <tbody>
+        {% for metric, kind in key|section_metrics %}
+            {% with value=stats|get_item:metric %}
+                <tr>
+                    <th scope="row">{{ metric|metric_label }}</th>
+                    <td class="text-end">
+                        {% if kind == "duration" %}
+                            {% if value != None %}{{ value|seconds_duration }}{% else %}–{% endif %}
+                        {% elif kind == "dict" %}
+                            {% if value %}
+                                {% include "summaries/_dict_items.html" with items=value %}
+                        {% else %}–{% endif %}
+                        {% else %}
+                            {% if value != None %}{{ value }}{% else %}–{% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endwith %}
+        {% endfor %}
+    </tbody>
+</table>

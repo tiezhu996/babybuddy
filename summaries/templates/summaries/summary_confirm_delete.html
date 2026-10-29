@@ -1,0 +1,34 @@
+{% extends "babybuddy/page.html" %}
+{% load i18n %}
+{% block title %}
+    {% trans "Delete visit summary" %}
+{% endblock %}
+{% block breadcrumbs %}
+    {{ block.super }}
+    <li class="breadcrumb-item font-weight-bold">{{ summary.data.child.name }}</li>
+    <li class="breadcrumb-item">
+        <a href="{% url 'summaries:summary-detail' summary.id %}">{% trans "Visit summary" %}</a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">{% trans "Delete" %}</li>
+{% endblock %}
+{% block content %}
+    <div class="container-fluid" style="max-width: 640px;">
+        <h1>{% trans "Delete visit summary" %}</h1>
+        <p>
+            {% blocktrans with start=summary.start_date end=summary.end_date %}
+                Are you sure you want to delete the visit summary for
+                {{ start }} through {{ end }}? The underlying care records are
+                not deleted.
+            {% endblocktrans %}
+        </p>
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-lg">
+                <i class="icon-delete" aria-hidden="true"></i>
+                {% trans "Delete" %}
+            </button>
+            <a href="{% url 'summaries:summary-detail' summary.id %}"
+               class="btn btn-outline-secondary btn-lg">{% trans "Cancel" %}</a>
+        </form>
+    </div>
+{% endblock %}

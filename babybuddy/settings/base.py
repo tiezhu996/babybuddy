@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "dashboard",
     "reports",
+    "summaries.apps.SummariesConfig",
     "webhooks.apps.WebhooksConfig",
     "axes",
     "django_filters",

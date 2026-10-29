@@ -1,0 +1,115 @@
+{% extends "babybuddy/page.html" %}
+{% load i18n summary_extras tz %}
+{% block title %}
+    {% trans "Visit summary" %} - {{ summary.data.child.name }}
+{% endblock %}
+{% block breadcrumbs %}
+    {{ block.super }}
+    <li class="breadcrumb-item font-weight-bold">{{ summary.data.child.name }}</li>
+    <li class="breadcrumb-item">
+        <a href="{% url 'summaries:summary-list' summary.child.slug %}">{% trans "Visit summaries" %}</a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">
+        {{ summary.data.range.start }} – {{ summary.data.range.end }}
+    </li>
+{% endblock %}
+{% block content %}
+    {% include "summaries/_print_styles.html" %}
+    {% timezone summary.data.timezone %}
+        <div class="container-fluid summary-detail summary-print-area">
+            <div class="d-flex justify-content-between align-items-start flex-wrap mb-3 no-print">
+                <div>
+                    <a class="btn btn-sm btn-outline-secondary"
+                       href="{% url 'summaries:summary-list' summary.child.slug %}">
+                        <i class="icon-angle-circled-left" aria-hidden="true"></i>
+                        {% trans "All summaries" %}
+                    </a>
+                </div>
+                <div class="btn-group" role="group">
+                    <a class="btn btn-sm btn-outline-primary"
+                       href="{% url 'summaries:summary-compare' summary.id %}">
+                        <i class="icon-refresh" aria-hidden="true"></i>
+                        {% trans "Compare with current data" %}
+                    </a>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-primary"
+                            onclick="window.print()">{% trans "Print / Save as PDF" %}</button>
+                    {% if perms.summaries.delete_visitsummary %}
+                        <a class="btn btn-sm btn-outline-danger"
+                           href="{% url 'summaries:summary-delete' summary.id %}">
+                            <i class="icon-delete" aria-hidden="true"></i>
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="summary-header card mb-4">
+                <div class="card-body">
+                    <h1 class="h3 mb-3">
+                        {% if summary.title %}
+                            {{ summary.title }}
+                            <small class="text-muted">{% trans "Visit summary" %}</small>
+                        {% else %}
+                            {% trans "Visit summary" %}
+                        {% endif %}
+                    </h1>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-3">{% trans "Child" %}</dt>
+                        <dd class="col-sm-9">
+                            {{ summary.data.child.name }}
+                        </dd>
+                        <dt class="col-sm-3">{% trans "Born" %}</dt>
+                        <dd class="col-sm-9">
+                            {{ summary.data.child.birth_date|from_iso|date:"SHORT_DATE_FORMAT" }}
+                            {% if summary.data.child.birth_time %}
+                                {{ summary.data.child.birth_time|slice:":5" }}
+                            {% endif %}
+                            {% if summary.data.child.due_date %}
+                                <span class="text-muted">
+                                    ({% trans "Due date" %}:
+                                    {{ summary.data.child.due_date|from_iso|date:"SHORT_DATE_FORMAT" }})
+                                </span>
+                            {% endif %}
+                        </dd>
+                        <dt class="col-sm-3">{% trans "Date range" %}</dt>
+                        <dd class="col-sm-9">
+                            {{ summary.data.range.start|from_iso|date:"SHORT_DATE_FORMAT" }}
+                            –
+                            {{ summary.data.range.end|from_iso|date:"SHORT_DATE_FORMAT" }}
+                        </dd>
+                        <dt class="col-sm-3">{% trans "Generated at" %}</dt>
+                        <dd class="col-sm-9">
+                            {{ summary.data.generated_at|from_iso|date:"SHORT_DATETIME_FORMAT" }}
+                            {% if summary.data.generated_by %}
+                                <span class="text-muted">({% trans "by" %} {{ summary.data.generated_by }})</span>
+                            {% endif %}
+                        </dd>
+                    </dl>
+                </div>
+            </div>
+            {% for key in summary.data.included_models %}
+                {% with entries=summary.data.entries|get_item:key stats=summary.data.stats|get_item:key count=summary.data.counts|get_item:key %}
+                    <div class="summary-section card mb-3">
+                        <div class="card-header">
+                            <h2 class="h5 mb-0">
+                                {{ key|section_label }}
+                                <span class="badge bg-secondary">{{ count }}</span>
+                            </h2>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-lg-4 mb-3 mb-lg-0">{% include "summaries/_stats_table.html" %}</div>
+                                <div class="col-lg-8">
+                                    {% if entries %}
+                                        {% include "summaries/_entries_table.html" %}
+                                    {% else %}
+                                        <p class="text-muted mb-0">{% trans "No records in this date range." %}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endwith %}
+            {% endfor %}
+        </div>
+    {% endtimezone %}
+{% endblock %}

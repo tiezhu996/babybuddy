@@ -1,0 +1,78 @@
+{% extends "babybuddy/page.html" %}
+{% load breadcrumb i18n %}
+{% block title %}
+    {% trans "Visit summaries" %} - {{ child }}
+{% endblock %}
+{% block breadcrumbs %}
+    {{ block.super }}
+    <li class="breadcrumb-item font-weight-bold">{% child_quick_switch child 'reports:report-list' %}</li>
+    <li class="breadcrumb-item">
+        <a href="{% url 'reports:report-list' child.slug %}">{% trans "Reports" %}</a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">{% trans "Visit summaries" %}</li>
+{% endblock %}
+{% block content %}
+    <div class="container-fluid">
+        <h1>
+            {% trans "Visit summaries" %}
+            {% if perms.summaries.add_visitsummary %}
+                <a href="{% url 'summaries:summary-add' child.slug %}"
+                   class="btn btn-sm btn-success">
+                    <i class="icon-add" aria-hidden="true"></i>
+                    {% trans "Generate visit summary" %}
+                </a>
+            {% endif %}
+        </h1>
+        <div class="table-responsive">
+            <table class="table table-instances table-borderless table-striped table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>{% trans "Actions" %}</th>
+                        <th>{% trans "Title" %}</th>
+                        <th>{% trans "Date range" %}</th>
+                        <th>{% trans "Generated at" %}</th>
+                        <th>{% trans "Records" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for summary in summaries %}
+                        <tr>
+                            <td>
+                                <div class="btn-group btn-group-sm" role="group">
+                                    <a href="{% url 'summaries:summary-detail' summary.id %}"
+                                       class="btn btn-primary"
+                                       title="{% trans 'Open' %}">
+                                        <i class="icon-graph" aria-hidden="true"></i>
+                                    </a>
+                                    {% if perms.summaries.delete_visitsummary %}
+                                        <a href="{% url 'summaries:summary-delete' summary.id %}"
+                                           class="btn btn-danger"
+                                           title="{% trans 'Delete' %}">
+                                            <i class="icon-delete" aria-hidden="true"></i>
+                                        </a>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <th scope="row">
+                                <a href="{% url 'summaries:summary-detail' summary.id %}">
+                                    {% if summary.title %}
+                                        {{ summary.title }}
+                                    {% else %}
+                                        {{ summary.start_date }} – {{ summary.end_date }}
+                                    {% endif %}
+                                </a>
+                            </th>
+                            <td>{{ summary.start_date }} – {{ summary.end_date }}</td>
+                            <td>{{ summary.generated_at|date:"SHORT_DATETIME_FORMAT" }}</td>
+                            <td>{{ summary.total_entries }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <th colspan="5">{% trans "No visit summaries yet." %}</th>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+{% endblock %}

@@ -1,0 +1,1 @@
+{% load summary_extras %}{% for name, count in items.items %}{% if metric == "count_by_type" %}{% with cf=key|add:":type" %}{{ name|choice_label:cf }}{% endwith %}{% elif metric == "count_by_method" %}{% with cf=key|add:":method" %}{{ name|choice_label:cf }}{% endwith %}{% else %}{{ name }}{% endif %}: {{ count }}{% if not forloop.last %}, {% endif %}{% endfor %}

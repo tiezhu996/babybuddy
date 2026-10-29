@@ -11,6 +11,15 @@
 {% block content %}
     <div class="container-fluid">
         <h1>Reports</h1>
+        {% if perms.summaries.view_visitsummary %}
+            <div class="reports-summaries mb-3">
+                <a href="{% url 'summaries:summary-list' object.slug %}"
+                   class="list-group-item list-group-item-action list-group-item-success">
+                    <i class="icon-add" aria-hidden="true"></i>
+                    {% trans "Visit summaries (frozen for doctor visits)" %}
+                </a>
+            </div>
+        {% endif %}
         <div class="reports-list list-group">
             {% if perms.core.view_bmi %}
                 <a href="{% url 'reports:report-bmi-change-child' object.slug %}"
