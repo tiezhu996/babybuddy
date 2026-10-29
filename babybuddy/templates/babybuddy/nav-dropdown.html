@@ -116,6 +116,14 @@
                             {% trans "Timeline" %}
                         </a>
                     </li>
+                    {% if perms.core.delete_feeding or perms.core.delete_sleep or perms.core.delete_note %}
+                        <li class="nav-item{% if request.path == '/trash' %} active{% endif %}">
+                            <a class="nav-link" href="{% url 'core:trash' %}">
+                                <i class="icon-delete" aria-hidden="true"></i>
+                                {% trans "Trash" %}
+                            </a>
+                        </li>
+                    {% endif %}
                     <li class="nav-item dropdown">
                         <a id="nav-children-menu-link"
                            class="nav-link dropdown-toggle"

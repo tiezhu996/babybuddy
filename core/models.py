@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import datetime
+import logging
 import re
 
 from django.core.cache import cache
@@ -16,7 +17,10 @@ from taggit.managers import TaggableManager as TaggitTaggableManager
 from taggit.models import GenericTaggedItemBase, TagBase
 
 from babybuddy.site_settings import NapSettings, FeedingSettings
+from core.signals import entry_restored
 from core.utils import random_color, timezone_aware_duration
+
+logger = logging.getLogger(__name__)
 
 
 def validate_date(date, field_name):
@@ -97,6 +101,102 @@ def validate_time(time, field_name):
         raise ValidationError(
             {field_name: _("Date/time can not be in the future.")}, code="time_invalid"
         )
+
+
+class SoftDeleteQuerySet(models.QuerySet):
+    def active(self):
+        return self.filter(deleted_at__isnull=True)
+
+    def trashed(self):
+        return self.filter(deleted_at__isnull=False)
+
+    def delete(self):
+        """
+        Move every row in the queryset to the trash instead of removing it.
+
+        ``update()`` is deliberate: it writes no ``post_save``, so hiding a
+        record that can still be restored does not look like an edit to
+        anything listening for changes (notably the webhook signals).
+
+        Returns the number of rows stamped, unlike a real ``QuerySet.delete``
+        which returns a ``(count, per_model)`` tuple.
+        """
+        return self.update(deleted_at=timezone.now())
+
+    def hard_delete(self):
+        """Really remove the rows, as ``delete()`` would have done."""
+        return super().delete()
+
+
+class SoftDeleteManager(models.Manager.from_queryset(SoftDeleteQuerySet)):
+    """Default manager for trashable models: trashed rows stay out of sight."""
+
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=True)
+
+
+class SoftDeleteModel(models.Model):
+    """
+    A record whose deletion is reversible for a while.
+
+    ``delete()`` stamps ``deleted_at`` and leaves the row in place, along
+    with everything hanging off it (child, tags, notes, uploaded files), so
+    a mistaken deletion can be undone with ``restore()`` as the very same
+    record. The row only actually disappears through ``hard_delete()``,
+    which fires ``post_delete`` like an ordinary deletion.
+
+    ``objects`` hides trashed rows and is what every ordinary read path
+    uses; ``all_objects`` includes them and belongs to the trash feature and
+    to the purge that eventually empties it.
+    """
+
+    deleted_at = models.DateTimeField(
+        blank=True,
+        db_index=True,
+        editable=False,
+        null=True,
+        verbose_name=_("Deleted at"),
+    )
+
+    objects = SoftDeleteManager()
+    all_objects = SoftDeleteQuerySet.as_manager()
+
+    class Meta:
+        abstract = True
+
+    def delete(self, using=None, keep_parents=False):
+        deleted_at = timezone.now()
+        self.__class__.all_objects.db_manager(using=using).filter(pk=self.pk).update(
+            deleted_at=deleted_at
+        )
+        self.deleted_at = deleted_at
+
+    def hard_delete(self, using=None, keep_parents=False):
+        """Really delete the row, firing the usual ``post_delete`` signal."""
+        super().delete(using, keep_parents)
+
+    def restore(self):
+        """
+        Bring the row back from the trash. Only rows actually in the trash
+        change, so calling this twice cannot create a second record.
+        """
+        updated = self.__class__.all_objects.filter(
+            pk=self.pk, deleted_at__isnull=False
+        ).update(deleted_at=None)
+        self.deleted_at = None
+        if updated:
+            # send_robust keeps one failing receiver from undoing the
+            # restore; surface that failure in the log instead of dropping it.
+            for receiver, response in entry_restored.send_robust(
+                sender=self.__class__, instance=self
+            ):
+                if isinstance(response, Exception):
+                    logger.error(
+                        "Error on receiver %s while restoring %s",
+                        receiver,
+                        self,
+                        exc_info=response,
+                    )
 
 
 class Tag(TagBase):
@@ -323,7 +423,7 @@ class DiaperChange(models.Model):
         validate_time(self.time, "time")
 
 
-class Feeding(models.Model):
+class Feeding(SoftDeleteModel):
     model_name = "feeding"
     child = models.ForeignKey(
         "Child",
@@ -370,8 +470,6 @@ class Feeding(models.Model):
     tags = TaggableManager(blank=True, through=Tagged)
 
     settings = FeedingSettings()
-
-    objects = models.Manager()
 
     class Meta:
         default_permissions = ("view", "add", "change", "delete")
@@ -480,7 +578,7 @@ class HeightPercentile(models.Model):
         ]
 
 
-class Note(models.Model):
+class Note(SoftDeleteModel):
     model_name = "note"
     child = models.ForeignKey(
         "Child", on_delete=models.CASCADE, related_name="note", verbose_name=_("Child")
@@ -494,8 +592,6 @@ class Note(models.Model):
     )
     tags = TaggableManager(blank=True, through=Tagged)
 
-    objects = models.Manager()
-
     class Meta:
         default_permissions = ("view", "add", "change", "delete")
         ordering = ["-time"]
@@ -504,6 +600,15 @@ class Note(models.Model):
 
     def __str__(self):
         return str(_("Note"))
+
+    def hard_delete(self, using=None, keep_parents=False):
+        image = self.image
+        super().hard_delete(using=using, keep_parents=keep_parents)
+        # The file outlives the row for as long as the note is only trashed,
+        # because a restored note must still have its picture. It is removed
+        # only now, with the real deletion.
+        if image:
+            image.delete(save=False)
 
 
 class Pumping(models.Model):
@@ -557,7 +662,7 @@ class Pumping(models.Model):
         validate_unique_period(Pumping.objects.filter(child_id=self.child_id), self)
 
 
-class Sleep(models.Model):
+class Sleep(SoftDeleteModel):
     model_name = "sleep"
     child = models.ForeignKey(
         "Child", on_delete=models.CASCADE, related_name="sleep", verbose_name=_("Child")
@@ -578,7 +683,6 @@ class Sleep(models.Model):
     notes = models.TextField(blank=True, null=True, verbose_name=_("Notes"))
     tags = TaggableManager(blank=True, through=Tagged)
 
-    objects = models.Manager()
     settings = NapSettings(_("Nap settings"))
 
     class Meta:

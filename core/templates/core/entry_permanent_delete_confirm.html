@@ -1,0 +1,33 @@
+{% extends "babybuddy/page.html" %}
+{% load datetime i18n %}
+{% block title %}
+    {% trans "Delete permanently" %}
+{% endblock %}
+{% block breadcrumbs %}
+    <li class="breadcrumb-item">
+        <a href="{% url 'core:trash' %}">{% trans "Trash" %}</a>
+    </li>
+    <li class="breadcrumb-item active" aria-current="page">{% trans "Delete permanently" %}</li>
+{% endblock %}
+{% block content %}
+    <form role="form" method="post">
+        {% csrf_token %}
+        <h1>
+            {% blocktrans trimmed with model=object child=object.child %}
+                Permanently delete this {{ model }} for {{ child }}?
+            {% endblocktrans %}
+        </h1>
+        <p>
+            {% if object.time %}
+                {{ object.time|datetime_short }}
+            {% else %}
+                {{ object.start|datetime_short }} - {{ object.end|datetime_short }}
+            {% endif %}
+        </p>
+        <p class="text-danger">
+            {% trans "This cannot be undone. The entry, including any uploaded image, is removed for good." %}
+        </p>
+        <button type="submit" class="btn btn-danger">{% trans "Delete permanently" %}</button>
+        <a href="{% url 'core:trash' %}" class="btn btn-default">{% trans "Cancel" %}</a>
+    </form>
+{% endblock %}

@@ -1,14 +1,18 @@
 # -*- coding: utf-8 -*-
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.messages.views import SuccessMessageMixin
 from django.db.models import Count
 from django.db.models.functions import Lower
 from django.forms import Form, ValidationError
 from django.http import HttpResponseRedirect
+from django.shortcuts import get_object_or_404
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.safestring import mark_safe
 from django.utils.translation import gettext as _
-from django.views.generic.base import RedirectView, TemplateView
+from django.views.generic.base import RedirectView, TemplateView, View
 from django.views.generic.detail import DetailView
 from django.views.generic.edit import CreateView, UpdateView, DeleteView, FormView
 
@@ -87,9 +91,143 @@ class CoreUpdateView(
 
 class CoreDeleteView(PermissionRequiredMixin, SuccessMessageMixin, DeleteView):
     def get_success_message(self, cleaned_data):
-        return _("%(model)s entry deleted.") % {
-            "model": self.model._meta.verbose_name.title()
-        }
+        model = self.model._meta.verbose_name.title()
+        if issubclass(self.model, models.SoftDeleteModel):
+            undo_url = reverse(
+                "core:{}-restore".format(self.model.model_name),
+                args=[self.object.pk],
+            )
+            return mark_safe(
+                _(
+                    "%(model)s entry moved to the trash. It can be restored "
+                    "for %(days)d days. "
+                    '<a class="alert-link" href="%(url)s">Undo</a>'
+                )
+                % {
+                    "model": model,
+                    "days": settings.BABY_BUDDY["TRASH_RETENTION_DAYS"],
+                    "url": undo_url,
+                }
+            )
+        return _("%(model)s entry deleted.") % {"model": model}
+
+
+class CoreRestoreView(PermissionRequiredMixin, View):
+    """
+    Bring one trashed entry back as the very same row. GET is deliberate so
+    the "Undo" link shown after a deletion works as plain navigation. Only
+    rows actually in the trash are found, so a repeat click 404s and can
+    never create a second record.
+    """
+
+    http_method_names = ["get"]
+    model = None
+
+    def get_default_redirect_url(self):
+        return reverse("core:{}-list".format(self.model.model_name))
+
+    def get(self, request, *args, **kwargs):
+        instance = get_object_or_404(
+            self.model.all_objects,
+            pk=kwargs["pk"],
+            deleted_at__isnull=False,
+        )
+        instance.restore()
+        messages.success(
+            request,
+            _("%(model)s entry restored.")
+            % {"model": self.model._meta.verbose_name.title()},
+        )
+        target = self.get_default_redirect_url()
+        next_url = request.GET.get("next") or target
+        if not url_has_allowed_host_and_scheme(
+            next_url,
+            allowed_hosts={request.get_host()},
+            require_https=request.is_secure(),
+        ):
+            next_url = target
+        return HttpResponseRedirect(next_url)
+
+
+class CorePermanentDeleteView(PermissionRequiredMixin, SuccessMessageMixin, DeleteView):
+    """
+    Really remove an entry that is currently in the trash. The inherited
+    ``delete()`` would only soft-delete (it calls ``Model.delete()``), so the
+    object is hard deleted here instead.
+    """
+
+    template_name = "core/entry_permanent_delete_confirm.html"
+    success_url = reverse_lazy("core:trash")
+
+    def get_queryset(self):
+        return self.model.all_objects.trashed()
+
+    def form_valid(self, form):
+        self.object.hard_delete()
+        messages.success(
+            self.request,
+            _("%(model)s entry permanently deleted.")
+            % {"model": self.model._meta.verbose_name.title()},
+        )
+        return HttpResponseRedirect(self.get_success_url())
+
+
+#: Entry kinds that can be restored from the trash, in trash page order.
+#: A section is shown only to someone holding both the view permission (to
+#: see the entry details) and the delete permission (to undo the deletion).
+TRASHABLE_MODELS = (
+    (models.Feeding, "core.view_feeding", "core.delete_feeding"),
+    (models.Sleep, "core.view_sleep", "core.delete_sleep"),
+    (models.Note, "core.view_note", "core.delete_note"),
+)
+
+
+def _can_access_trash_section(user, view_permission, delete_permission):
+    return user.has_perm(view_permission) and user.has_perm(delete_permission)
+
+
+class TrashList(PermissionRequiredMixin, TemplateView):
+    template_name = "core/trash.html"
+
+    def has_permission(self):
+        # Access needs one complete view+delete pair; the mixin's default
+        # would instead require every permission it knows about.
+        return any(
+            _can_access_trash_section(self.request.user, *permissions)
+            for _, *permissions in TRASHABLE_MODELS
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        now = timezone.localtime()
+        retention_days = settings.BABY_BUDDY["TRASH_RETENTION_DAYS"]
+        sections = []
+        for model, view_permission, delete_permission in TRASHABLE_MODELS:
+            if not _can_access_trash_section(
+                self.request.user, view_permission, delete_permission
+            ):
+                continue
+            items = list(
+                model.all_objects.trashed()
+                .select_related("child")
+                .order_by("-deleted_at")
+            )
+            for item in items:
+                age_days = (now - timezone.localtime(item.deleted_at)).days
+                item.days_remaining = max(0, retention_days - age_days)
+            sections.append(
+                {
+                    "model_name": model.model_name,
+                    "verbose_name_plural": model._meta.verbose_name_plural,
+                    "items": items,
+                    "restore_url_name": "core:{}-restore".format(model.model_name),
+                    "delete_url_name": "core:{}-delete-now".format(model.model_name),
+                }
+            )
+        context["sections"] = sections
+        context["trash_empty"] = not any(section["items"] for section in sections)
+        context["retention_days"] = retention_days
+        return context
 
 
 class BMIList(PermissionRequiredMixin, BabyBuddyPaginatedView, BabyBuddyFilterView):
@@ -231,6 +369,16 @@ class FeedingDelete(CoreDeleteView):
     success_url = reverse_lazy("core:feeding-list")
 
 
+class FeedingRestore(CoreRestoreView):
+    model = models.Feeding
+    permission_required = ("core.delete_feeding",)
+
+
+class FeedingPermanentDelete(CorePermanentDeleteView):
+    model = models.Feeding
+    permission_required = ("core.delete_feeding",)
+
+
 class HeadCircumferenceList(
     PermissionRequiredMixin, BabyBuddyPaginatedView, BabyBuddyFilterView
 ):
@@ -346,6 +494,16 @@ class NoteDelete(CoreDeleteView):
     success_url = reverse_lazy("core:note-list")
 
 
+class NoteRestore(CoreRestoreView):
+    model = models.Note
+    permission_required = ("core.delete_note",)
+
+
+class NotePermanentDelete(CorePermanentDeleteView):
+    model = models.Note
+    permission_required = ("core.delete_note",)
+
+
 class PumpingList(PermissionRequiredMixin, BabyBuddyPaginatedView, BabyBuddyFilterView):
     model = models.Pumping
     template_name = "core/pumping_list.html"
@@ -400,6 +558,16 @@ class SleepDelete(CoreDeleteView):
     model = models.Sleep
     permission_required = ("core.delete_sleep",)
     success_url = reverse_lazy("core:sleep-list")
+
+
+class SleepRestore(CoreRestoreView):
+    model = models.Sleep
+    permission_required = ("core.delete_sleep",)
+
+
+class SleepPermanentDelete(CorePermanentDeleteView):
+    model = models.Sleep
+    permission_required = ("core.delete_sleep",)
 
 
 class TagAdminList(

@@ -6,6 +6,7 @@ from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
 from core import models as core_models
+from core.signals import entry_restored
 
 from webhooks.models import WebhookEndpoint, WebhookEvent
 
@@ -81,3 +82,10 @@ def record_event_on_delete(sender, instance, **kwargs):
     if sender not in WATCHED:
         return
     record_event(instance, "deleted")
+
+
+@receiver(entry_restored, dispatch_uid="webhooks.record_event_on_restore")
+def record_event_on_restore(sender, instance, **kwargs):
+    if sender not in WATCHED:
+        return
+    record_event(instance, "restored")

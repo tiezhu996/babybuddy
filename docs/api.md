@@ -302,3 +302,23 @@ curl -X DELETE https://[...]/api/changes/947/ -H 'Authorization: Token [...]'
 Returns an empty response with HTTP status code `204` on success, or a JSON
 encoded error detail if an error occurred (e.g. `{"detail":"Not found."}` if
 the requested ID does not exist).
+
+### Deleting and restoring feedings, sleep and notes
+
+`DELETE` on a feeding, sleep or note moves the entry to the trash instead of
+removing it. The entry then disappears from `GET` results (the detail endpoint
+returns `404`) but is kept for the configured retention period and can be
+brought back unchanged.
+
+To restore an entry, `POST` to its `restore` endpoint:
+
+```shell
+curl -X POST https://[...]/api/feedings/947/restore/ -H 'Authorization: Token [...]'
+```
+
+The entry is returned with HTTP status code `200`. Restoring requires the same
+permission as deleting (`delete_feeding`, `delete_sleep` or `delete_note`), and
+restoring an entry that is not in the trash returns `404`; a repeat call can
+therefore never create a duplicate. After the retention period expires the
+entry is removed for good; see [Webhooks](configuration/webhooks.md) for the
+notifications that accompany these steps.

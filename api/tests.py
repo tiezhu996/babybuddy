@@ -1701,3 +1701,107 @@ class TestSchemaAPITestCase(APITestCase):
         names = [parameter["name"] for parameter in parameters]
         for name in ("child", "start", "start_min", "end", "end_max", "tags"):
             self.assertIn(name, names)
+
+
+class TrashRestoreAPITestCase(APITestCase):
+    """DELETE soft-deletes feedings, sleep and notes; restore brings them back."""
+
+    fixtures = ["tests.json"]
+
+    def setUp(self):
+        self.client.login(username="admin", password="admin")
+        self.child = models.Child.objects.first()
+        now = timezone.localtime()
+        self.feeding = models.Feeding.objects.create(
+            child=self.child,
+            start=now - timezone.timedelta(minutes=30),
+            end=now,
+            type="formula",
+            method="bottle",
+            amount=60,
+            notes="api trash",
+        )
+        self.sleep = models.Sleep.objects.create(
+            child=self.child,
+            start=now - timezone.timedelta(hours=2),
+            end=now - timezone.timedelta(hours=1),
+        )
+        self.note = models.Note.objects.create(
+            child=self.child, note="api note", time=now
+        )
+
+    def _cases(self):
+        return (
+            (
+                self.feeding,
+                reverse("api:feeding-detail", args=[self.feeding.pk]),
+                reverse("api:feeding-restore", args=[self.feeding.pk]),
+                models.Feeding,
+            ),
+            (
+                self.sleep,
+                reverse("api:sleep-detail", args=[self.sleep.pk]),
+                reverse("api:sleep-restore", args=[self.sleep.pk]),
+                models.Sleep,
+            ),
+            (
+                self.note,
+                reverse("api:note-detail", args=[self.note.pk]),
+                reverse("api:note-restore", args=[self.note.pk]),
+                models.Note,
+            ),
+        )
+
+    def test_delete_hides_and_restore_returns_same_record(self):
+        for instance, detail_url, restore_url, model in self._cases():
+            with self.subTest(model=model.__name__):
+                active_count = model.objects.count()
+                self.assertEqual(
+                    self.client.delete(detail_url).status_code,
+                    status.HTTP_204_NO_CONTENT,
+                )
+                self.assertEqual(model.objects.count(), active_count - 1)
+                self.assertEqual(
+                    self.client.get(detail_url).status_code,
+                    status.HTTP_404_NOT_FOUND,
+                )
+
+                response = self.client.post(restore_url)
+                self.assertEqual(response.status_code, status.HTTP_200_OK)
+                self.assertEqual(response.data["id"], instance.pk)
+                self.assertEqual(model.objects.count(), active_count)
+                self.assertEqual(
+                    self.client.get(detail_url).status_code,
+                    status.HTTP_200_OK,
+                )
+
+    def test_restore_is_idempotent(self):
+        detail_url = reverse("api:feeding-detail", args=[self.feeding.pk])
+        restore_url = reverse("api:feeding-restore", args=[self.feeding.pk])
+        self.client.delete(detail_url)
+        self.assertEqual(self.client.post(restore_url).status_code, status.HTTP_200_OK)
+        # A second restore finds nothing in the trash and cannot duplicate.
+        self.assertEqual(
+            self.client.post(restore_url).status_code,
+            status.HTTP_404_NOT_FOUND,
+        )
+        self.assertEqual(models.Feeding.objects.filter(pk=self.feeding.pk).count(), 1)
+
+    def test_restore_requires_delete_permission(self):
+        caregiver = get_user_model().objects.create_user(
+            username="restore-caregiver", password="caregiver", is_active=True
+        )
+        caregiver.groups.add(
+            Group.objects.get(name=settings.BABY_BUDDY["CAREGIVER_GROUP_NAME"])
+        )
+        self.feeding.delete()
+        self.client.login(username="restore-caregiver", password="caregiver")
+        response = self.client.post(
+            reverse("api:feeding-restore", args=[self.feeding.pk])
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(
+            models.Feeding.all_objects.filter(
+                pk=self.feeding.pk, deleted_at__isnull=False
+            ).exists()
+        )

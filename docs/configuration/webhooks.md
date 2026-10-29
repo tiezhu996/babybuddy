@@ -20,9 +20,19 @@ The body names the change and carries nothing about its contents:
 ```
 
 `type` is the record kind and what happened to it, so `feeding.created`,
-`feeding.updated` and `feeding.deleted` are all distinct events. `object_id`
-identifies the record. Anything that wants the details reads them back through
-the [API](../api.md) with its own credentials.
+`feeding.updated` and `feeding.deleted` are all distinct events. Feedings,
+sleep entries and notes can also send `feeding.restored`, `sleep.restored`
+and `note.restored` when a deleted entry is brought back from the trash.
+`object_id` identifies the record. Anything that wants the details reads them
+back through the [API](../api.md) with its own credentials. A receiver that
+does not know an event type should ignore it, so a new type never has to mean
+a failed delivery.
+
+Deleting a feeding, sleep entry or note moves it to a trash instead of
+removing it, so no event is sent for that step: the record can still be
+brought back, and nothing is told it is gone. A restore sends `restored`, and
+only the eventual purge -- when the entry has outlived the trash retention
+period, or someone deletes it for good -- sends `deleted`.
 
 That is all it is told. An endpoint is a URL that somebody configured once and
 then left alone, and it is not given the name of a child, how much was fed or
@@ -154,9 +164,17 @@ pumping, sleep, temperature, timers, tummy time and weight. Percentiles are
 left out because they are computed rather than written, so announcing them
 would send an event for every measurement that merely moved a curve.
 
-There is one place where nothing is announced: `QuerySet.update()` writes rows
-without calling `save()`, so no signal fires. It is used in migrations and tests
-only. A bulk write elsewhere would go unannounced.
+Feedings, sleep entries and notes are soft-deleted: moving one to the trash
+announces nothing, bringing it back announces `restored`, and only the real
+removal -- automatic once its retention period is over, or a manual permanent
+deletion -- announces `deleted`. Every other kind is still deleted outright
+and announces `deleted` immediately.
+
+There is one more place where nothing is announced: `QuerySet.update()` writes
+rows without calling `save()`, so no signal fires. It is used in migrations and
+tests, and deliberately to move feedings, sleep entries and notes into the
+trash -- that step is meant to be silent. A bulk write elsewhere would go
+unannounced.
 
 An endpoint receives every one of these. `type` is enough to keep what you
 want and drop the rest at the receiving end, so there is no filter to configure

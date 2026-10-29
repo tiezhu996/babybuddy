@@ -95,5 +95,29 @@ class ImportTestCase(TestCase):
     def test_tummytime(self):
         self.import_data(models.TummyTime, 36)
 
+    def test_export_excludes_trashed_notes(self):
+        # The export uses the same default queryset every read path uses.
+        visible = models.Note.objects.create(
+            child=models.Child.objects.first(),
+            note="visible",
+            time=datetime.datetime(2020, 2, 10, 12, 0),
+        )
+        trashed = models.Note.objects.create(
+            child=models.Child.objects.first(),
+            note="trashed",
+            time=datetime.datetime(2020, 2, 10, 13, 0),
+        )
+        trashed.delete()
+
+        def exported_ids():
+            dataset = admin.NoteImportExportResource().export()
+            return {int(row["id"]) for row in dataset.dict}
+
+        self.assertIn(visible.pk, exported_ids())
+        self.assertNotIn(trashed.pk, exported_ids())
+
+        models.Note.all_objects.get(pk=trashed.pk).restore()
+        self.assertIn(trashed.pk, exported_ids())
+
     def test_weight(self):
         self.import_data(models.Weight, 5)

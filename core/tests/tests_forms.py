@@ -405,7 +405,9 @@ class FeedingFormsTestCase(FormsTestCaseBase):
     def test_delete(self):
         page = self.c.post("/feedings/{}/delete/".format(self.feeding.id), follow=True)
         self.assertEqual(page.status_code, 200)
-        self.assertContains(page, "Feeding entry deleted")
+        self.assertContains(page, "Feeding entry moved to the trash")
+        self.assertContains(page, "/feedings/{}/restore/".format(self.feeding.id))
+        self.assertTrue(models.Feeding.all_objects.get(pk=self.feeding.pk).deleted_at)
 
     def test_bottle_feeding_no_overlap_with_past_entry(self):
         """Bottle feeding logged late should not overlap with later feedings."""
@@ -598,7 +600,9 @@ class NoteFormsTestCase(FormsTestCaseBase):
     def test_delete(self):
         page = self.c.post("/notes/{}/delete/".format(self.note.id), follow=True)
         self.assertEqual(page.status_code, 200)
-        self.assertContains(page, "Note entry deleted")
+        self.assertContains(page, "Note entry moved to the trash")
+        self.assertContains(page, "/notes/{}/restore/".format(self.note.id))
+        self.assertTrue(models.Note.all_objects.get(pk=self.note.pk).deleted_at)
 
 
 class PumpingFormsTestCase(FormsTestCaseBase):
@@ -694,7 +698,9 @@ class SleepFormsTestCase(FormsTestCaseBase):
     def test_delete(self):
         page = self.c.post("/sleep/{}/delete/".format(self.sleep.id), follow=True)
         self.assertEqual(page.status_code, 200)
-        self.assertContains(page, "Sleep entry deleted")
+        self.assertContains(page, "Sleep entry moved to the trash")
+        self.assertContains(page, "/sleep/{}/restore/".format(self.sleep.id))
+        self.assertTrue(models.Sleep.all_objects.get(pk=self.sleep.pk).deleted_at)
 
     def test_nap_default(self):
         models.Sleep.settings.nap_start_min = datetime.time(0, 0, 0)
@@ -804,7 +810,9 @@ class TaggedFormsTestCase(FormsTestCaseBase):
     def test_delete(self):
         page = self.c.post("/notes/{}/delete/".format(self.note.id), follow=True)
         self.assertEqual(page.status_code, 200)
-        self.assertContains(page, "Note entry deleted")
+        self.assertContains(page, "Note entry moved to the trash")
+        self.assertContains(page, "/notes/{}/restore/".format(self.note.id))
+        self.assertTrue(models.Note.all_objects.get(pk=self.note.pk).deleted_at)
 
 
 class TemperatureFormsTestCase(FormsTestCaseBase):

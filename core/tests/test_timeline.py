@@ -53,7 +53,46 @@ class TimelineTestCase(TestCase):
                 self.assertEqual(events_day_2[0]["type"], "end")
                 self.assertEqual(events_day_2[0]["time"], end_time)
 
-                instance.delete()
+                # Soft-deletable models must be hard deleted here: this is
+                # test cleanup, not a trash check.
+                if hasattr(instance, "hard_delete"):
+                    instance.hard_delete()
+                else:
+                    instance.delete()
+
+    def test_trashed_entries_are_hidden_until_restored(self):
+        day = timezone.make_aware(datetime.datetime(2023, 3, 1))
+        start = day.replace(hour=9, minute=0)
+        end = day.replace(hour=9, minute=30)
+
+        feeding = models.Feeding.objects.create(
+            child=self.child,
+            start=start,
+            end=end,
+            type="formula",
+            method="bottle",
+        )
+        sleep = models.Sleep.objects.create(
+            child=self.child,
+            start=day.replace(hour=12, minute=0),
+            end=day.replace(hour=13, minute=0),
+        )
+        note = models.Note.objects.create(
+            child=self.child, note="remember", time=day.replace(hour=8, minute=0)
+        )
+
+        # Two start/end events for the activities plus one note event.
+        self.assertEqual(len(get_objects(date=day, child=self.child)), 5)
+
+        feeding.delete()
+        sleep.delete()
+        note.delete()
+        self.assertEqual(get_objects(date=day, child=self.child), [])
+
+        models.Feeding.all_objects.get(pk=feeding.pk).restore()
+        models.Sleep.all_objects.get(pk=sleep.pk).restore()
+        models.Note.all_objects.get(pk=note.pk).restore()
+        self.assertEqual(len(get_objects(date=day, child=self.child)), 5)
 
     def test_tummy_time_notes_appear_in_timeline(self):
         """

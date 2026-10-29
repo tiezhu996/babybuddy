@@ -17,6 +17,14 @@ def strtobool(val):
         raise ValueError("invalid truth value {!r}".format(val))
 
 
+# Convert a value to a positive integer or fail while settings are read.
+def positive_int(val):
+    ival = int(val)
+    if ival <= 0:
+        raise ValueError("expected a positive integer, got {!r}".format(val))
+    return ival
+
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -403,6 +411,8 @@ BABY_BUDDY = {
     "ALLOW_UPLOADS": bool(strtobool(os.environ.get("ALLOW_UPLOADS") or "True")),
     "READ_ONLY_GROUP_NAME": "read_only",
     "CAREGIVER_GROUP_NAME": "caregiver",
+    # Days a feeding, sleep or note stays in the trash before it is purged.
+    "TRASH_RETENTION_DAYS": positive_int(os.environ.get("TRASH_RETENTION_DAYS") or 30),
 }
 
 # Home assistant specific configuration

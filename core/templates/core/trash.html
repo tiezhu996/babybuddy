@@ -1,0 +1,88 @@
+{% extends "babybuddy/page.html" %}
+{% load datetime i18n %}
+{% block title %}
+    {% trans "Trash" %}
+{% endblock %}
+{% block breadcrumbs %}
+    <li class="breadcrumb-item active" aria-current="page">{% trans "Trash" %}</li>
+{% endblock %}
+{% block content %}
+    <h1>{% trans "Trash" %}</h1>
+    <p class="text-body-secondary">
+        {% blocktrans trimmed with days=retention_days %}
+            Deleted feedings, sleep entries and notes are kept here for {{ days }}
+            days and can be restored to their original date and time.
+        {% endblocktrans %}
+    </p>
+    {% if trash_empty %}
+        <p>{% trans "The trash is empty." %}</p>
+    {% endif %}
+    {% for section in sections %}
+        <h2>{{ section.verbose_name_plural }}</h2>
+        <div class="table-responsive">
+            <table class="table table-instances table-borderless table-striped table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>{% trans "Actions" %}</th>
+                        <th>{% trans "Date" %}</th>
+                        <th>{% trans "Child" %}</th>
+                        <th>{% trans "Details" %}</th>
+                        <th>{% trans "Tags" %}</th>
+                        <th>{% trans "Deleted" %}</th>
+                        <th>{% trans "Days left" %}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in section.items %}
+                        <tr>
+                            <td>
+                                <div class="btn-group btn-group-sm"
+                                     role="group"
+                                     aria-label="{% trans "Actions" %}">
+                                    <a href="{% url section.restore_url_name item.pk %}?next={% url 'core:trash' %}"
+                                       class="btn btn-primary"
+                                       title="{% trans "Restore" %}">
+                                        <i class="icon-update" aria-hidden="true"></i>
+                                    </a>
+                                    <a href="{% url section.delete_url_name item.pk %}"
+                                       class="btn btn-danger"
+                                       title="{% trans "Delete permanently" %}">
+                                        <i class="icon-delete" aria-hidden="true"></i>
+                                    </a>
+                                </div>
+                            </td>
+                            <th scope="row">
+                                {% if section.model_name == "note" %}
+                                    {{ item.time|datetime_short }}
+                                {% else %}
+                                    {{ item.start|datetime_short }} -
+                                    {{ item.end|datetime_short }}
+                                {% endif %}
+                            </th>
+                            <td>
+                                <a href="{% url 'core:child' item.child.slug %}">{{ item.child }}</a>
+                            </td>
+                            <td>
+                                {% if section.model_name == "note" %}
+                                    {{ item.note }}
+                                {% else %}
+                                    {{ item.notes }}
+                                {% endif %}
+                                {% if item.image %}
+                                    <a href="{{ item.image.url }}">{% trans "Image" %}</a>
+                                {% endif %}
+                            </td>
+                            <td>{% include "core/render_tag_list.html" with tags=item.tags.all %}</td>
+                            <td>{{ item.deleted_at|datetime_short }}</td>
+                            <td>{{ item.days_remaining }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <th colspan="7">{% trans "Nothing in the trash." %}</th>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endfor %}
+{% endblock %}

@@ -13,6 +13,30 @@ from babybuddy import models as babybuddy_models
 from webhooks import models as webhooks_models
 
 from . import serializers, filters
+from .permissions import TrashRestorePermission
+
+
+class TrashRestoreMixin:
+    """
+    Adds a POST ``restore`` action to a soft-deletable entry. Only rows
+    currently in the trash are found, so a repeat call 404s and can never
+    create a duplicate. The entry itself is returned back visible again.
+    """
+
+    @action(detail=True, methods=["post"])
+    def restore(self, request, pk=None):
+        instance = get_object_or_404(
+            self.queryset.model.all_objects,
+            pk=pk,
+            deleted_at__isnull=False,
+        )
+        instance.restore()
+        return Response(self.get_serializer(instance).data)
+
+    def get_permissions(self):
+        if self.action == "restore":
+            return [TrashRestorePermission()]
+        return super().get_permissions()
 
 
 class BMIViewSet(viewsets.ModelViewSet):
@@ -56,7 +80,7 @@ class DiaperChangeViewSet(viewsets.ModelViewSet):
     ordering = "-time"
 
 
-class FeedingViewSet(viewsets.ModelViewSet):
+class FeedingViewSet(TrashRestoreMixin, viewsets.ModelViewSet):
     queryset = models.Feeding.objects.all()
     serializer_class = serializers.FeedingSerializer
     filterset_class = filters.FeedingFilter
@@ -96,7 +120,7 @@ class MedicationViewSet(viewsets.ModelViewSet):
         return name
 
 
-class NoteViewSet(viewsets.ModelViewSet):
+class NoteViewSet(TrashRestoreMixin, viewsets.ModelViewSet):
     queryset = models.Note.objects.all()
     serializer_class = serializers.NoteSerializer
     filterset_class = filters.NoteFilter
@@ -112,7 +136,7 @@ class PumpingViewSet(viewsets.ModelViewSet):
     ordering = "-end"
 
 
-class SleepViewSet(viewsets.ModelViewSet):
+class SleepViewSet(TrashRestoreMixin, viewsets.ModelViewSet):
     queryset = models.Sleep.objects.all()
     serializer_class = serializers.SleepSerializer
     filterset_class = filters.SleepFilter

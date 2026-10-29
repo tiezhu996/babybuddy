@@ -47,7 +47,30 @@ class WebhookSignalTestCase(TestCase):
         feeding.save()
         self.assertEqual(WebhookEvent.objects.latest("id").type, "feeding.updated")
 
-    def test_delete_is_announced(self):
+    def test_a_soft_delete_is_not_announced(self):
+        # A move to the trash can still be undone, so nobody is told the
+        # record is gone. This holds for every trashable kind.
+        now = timezone.localtime()
+        instances = (
+            models.Feeding.objects.create(
+                child=self.child,
+                start=now,
+                end=now,
+                type="formula",
+                method="bottle",
+            ),
+            models.Sleep.objects.create(child=self.child, start=now, end=now),
+            models.Note.objects.create(child=self.child, note="hello", time=now),
+        )
+        for instance in instances:
+            before = WebhookEvent.objects.count()
+            instance.delete()
+            self.assertEqual(WebhookEvent.objects.count(), before)
+            # A bulk soft delete is quiet for the same reason.
+            instance.__class__.all_objects.filter(pk=instance.pk).delete()
+            self.assertEqual(WebhookEvent.objects.count(), before)
+
+    def test_restore_is_announced(self):
         feeding = models.Feeding.objects.create(
             child=self.child,
             start=timezone.localtime(),
@@ -56,9 +79,73 @@ class WebhookSignalTestCase(TestCase):
         )
         primary_key = str(feeding.pk)
         feeding.delete()
+        trashed = models.Feeding.all_objects.get(pk=feeding.pk)
+        trashed.restore()
+        event = WebhookEvent.objects.latest("id")
+        self.assertEqual(event.type, "feeding.restored")
+        self.assertEqual(event.object_id, primary_key)
+
+    def test_restoring_an_active_row_announces_nothing(self):
+        # Restore only changes rows actually in the trash, so a repeated
+        # restore neither changes data nor queues a second event.
+        feeding = models.Feeding.objects.create(
+            child=self.child,
+            start=timezone.localtime(),
+            end=timezone.localtime(),
+            type="formula",
+        )
+        before = WebhookEvent.objects.count()
+        feeding.restore()
+        self.assertEqual(WebhookEvent.objects.count(), before)
+
+    def test_hard_delete_is_announced(self):
+        feeding = models.Feeding.objects.create(
+            child=self.child,
+            start=timezone.localtime(),
+            end=timezone.localtime(),
+            type="formula",
+        )
+        primary_key = str(feeding.pk)
+        feeding.delete()
+        feeding.hard_delete()
         event = WebhookEvent.objects.latest("id")
         self.assertEqual(event.type, "feeding.deleted")
         self.assertEqual(event.object_id, primary_key)
+
+    def test_restore_skips_inactive_endpoints(self):
+        self.endpoint.active = False
+        self.endpoint.save()
+        feeding = models.Feeding.objects.create(
+            child=self.child,
+            start=timezone.localtime(),
+            end=timezone.localtime(),
+            type="formula",
+        )
+        feeding.delete()
+        before = WebhookEvent.objects.count()
+        models.Feeding.all_objects.get(pk=feeding.pk).restore()
+        self.assertEqual(WebhookEvent.objects.count(), before)
+
+    def test_a_recording_failure_does_not_break_a_restore(self):
+        # As with a save, a webhook that cannot be queued must not undo the
+        # restore itself.
+        feeding = models.Feeding.objects.create(
+            child=self.child,
+            start=timezone.localtime(),
+            end=timezone.localtime(),
+            type="formula",
+        )
+        feeding.delete()
+        original = WebhookEndpoint.objects.filter
+
+        def broken(*args, **kwargs):
+            raise RuntimeError("no")
+
+        WebhookEndpoint.objects.filter = broken
+        self.addCleanup(setattr, WebhookEndpoint.objects, "filter", original)
+        with self.assertLogs("webhooks.signals", level="ERROR"):
+            models.Feeding.all_objects.get(pk=feeding.pk).restore()
+        self.assertTrue(models.Feeding.objects.filter(pk=feeding.pk).exists())
 
     def test_every_record_model_is_watched(self):
         # A new kind of record is a new kind of change to announce. This fails

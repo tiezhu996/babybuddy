@@ -59,6 +59,31 @@ class ViewsTestCase(TestCase):
         page = self.c.get("{}/feeding/pattern/".format(base_url))
         self.assertEqual(page.status_code, 200)
 
+    def test_report_pages_with_trashed_entries(self):
+        # Trashed feedings and sleep entries must simply be absent from the
+        # reports, not break their aggregation.
+        child = models.Child.objects.first()
+        models.Feeding.objects.filter(child=child).delete()
+        models.Sleep.objects.filter(child=child).delete()
+        models.Note.objects.filter(child=child).delete()
+        base_url = "/children/{}/reports".format(child.slug)
+
+        self.assertEqual(
+            self.c.get("{}/feeding/duration/".format(base_url)).status_code, 200
+        )
+        self.assertEqual(
+            self.c.get("{}/feeding/amounts/".format(base_url)).status_code, 200
+        )
+        self.assertEqual(
+            self.c.get("{}/feeding/pattern/".format(base_url)).status_code, 200
+        )
+        self.assertEqual(
+            self.c.get("{}/sleep/pattern/".format(base_url)).status_code, 200
+        )
+        self.assertEqual(
+            self.c.get("{}/sleep/totals/".format(base_url)).status_code, 200
+        )
+
         page = self.c.get("{}/head-circumference/head-circumference/".format(base_url))
         self.assertEqual(page.status_code, 200)
 

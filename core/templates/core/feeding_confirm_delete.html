@@ -13,6 +13,7 @@
     <form role="form" method="post">
         {% csrf_token %}
         <h1>{% confirm_delete_text object %}</h1>
+        <p>{% trans "It can be restored from the trash if you change your mind." %}</p>
         <button type="submit" class="btn btn-danger">{% trans "Delete" %}</button>
         <a href="{% url 'core:feeding-list' %}" class="btn btn-default">{% trans "Cancel" %}</a>
     </form>

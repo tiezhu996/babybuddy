@@ -55,6 +55,24 @@ From the top navigation bar select the plus sign to add an activity. Select
 Tummy Time. If necessary, modify the child. Select the start time for the
 activity. This time must be prior to the end time. When complete, select Submit.
 
+## Deleting and restoring entries
+
+Deleting a feeding, sleep entry or note moves it to a **Trash** instead of
+removing it right away. The entry disappears from the timeline, dashboard and
+reports, but nothing is lost: its original date and time, child, tags, notes and
+any image are all kept.
+
+Right after deleting, the confirmation message includes an **Undo** link that
+restores the entry immediately. Later, open **Trash** from the navigation bar
+to see everything deleted, how long each entry has left, and restore any of
+them -- or delete one permanently. A restored entry is the very same record, so
+it reappears at its original time with all of its details intact.
+
+Entries stay in the trash for 30 days by default; after that they are removed
+for good, including their uploaded images. See
+[Trash configuration](../configuration/trash.md) for how to change the
+retention period and schedule the cleanup.
+
 ## Adding Measurements
 
 ### BMI

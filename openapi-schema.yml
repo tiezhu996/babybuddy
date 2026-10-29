@@ -1933,6 +1933,37 @@ paths:
           description: ""
       tags:
         - api
+  /api/feedings/{id}/restore/:
+    post:
+      operationId: restoreFeeding
+      description: ""
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: A unique integer value identifying this Feeding.
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Feeding"
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/Feeding"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/Feeding"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Feeding"
+          description: ""
+      tags:
+        - api
   /api/head-circumference/:
     get:
       operationId: listHeadCircumferences
@@ -3222,6 +3253,37 @@ paths:
           description: ""
       tags:
         - api
+  /api/notes/{id}/restore/:
+    post:
+      operationId: restoreNote
+      description: ""
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: A unique integer value identifying this Note.
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Note"
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/Note"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/Note"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Note"
+          description: ""
+      tags:
+        - api
   /api/pumping/:
     get:
       operationId: listPumpings
@@ -4061,6 +4123,37 @@ paths:
             type: string
       responses:
         "204":
+          description: ""
+      tags:
+        - api
+  /api/sleep/{id}/restore/:
+    post:
+      operationId: restoreSleep
+      description: ""
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: A unique integer value identifying this Sleep.
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Sleep"
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/Sleep"
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/Sleep"
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sleep"
           description: ""
       tags:
         - api

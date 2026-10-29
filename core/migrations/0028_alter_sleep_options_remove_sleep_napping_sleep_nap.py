@@ -5,14 +5,21 @@ from django.utils import timezone
 
 
 def set_sleep_nap_values(apps, schema_editor):
-    # The model must be imported to ensure its overridden `save` method is run.
-    from core.models import Sleep
+    # Rows are read and written through the historical model: importing the
+    # current one makes this old migration read columns that did not exist
+    # yet when it ran (e.g. the later soft-delete `deleted_at` field). The
+    # nap window itself is read off the current model's settings group,
+    # which is only a class attribute -- instantiating a fresh NapSettings
+    # here would re-register duplicate entries in dbsettings' registry.
+    from core.models import Sleep as CurrentSleep
+
+    Sleep = apps.get_model("core", "Sleep")
+    nap_start_min = CurrentSleep.settings.nap_start_min
+    nap_start_max = CurrentSleep.settings.nap_start_max
 
     for sleep in Sleep.objects.all():
         sleep.nap = (
-            Sleep.settings.nap_start_min
-            <= timezone.localtime(sleep.start).time()
-            <= Sleep.settings.nap_start_max
+            nap_start_min <= timezone.localtime(sleep.start).time() <= nap_start_max
         )
         sleep.save()
 
